@@ -30,14 +30,14 @@ class MbedTerminal(object):
         self.port = port
         self.baudrate = int(baudrate)
         self.timeout = int(timeout)
-        self.echo = False if str(echo).lower() == 'off' else True
+        self.echo = str(echo).lower() != 'off'
 
         try:
             from serial import Serial, SerialException
             self.serial = Serial(self.port, baudrate=self.baudrate, timeout=self.timeout)
             self.serial.flush()
             self.serial.reset_input_buffer()
-        except (IOError, ImportError, OSError, Exception):
+        except (IOError, Exception):
             self.serial = None
             return
 
@@ -91,7 +91,18 @@ class MbedTerminal(object):
                     c = '\x03'
                 if not term.alive:
                     break
-                if menu_active and c in ['p', 'b', '\t', '\x01', '\x03', '\x04', '\x05', '\x06', '\x0c', '\x14']:
+                if menu_active and c in {
+                    'p',
+                    'b',
+                    '\t',
+                    '\x01',
+                    '\x03',
+                    '\x04',
+                    '\x05',
+                    '\x06',
+                    '\x0c',
+                    '\x14',
+                }:
                     term.handle_menu_key(c)
                     menu_active = False
                 elif c == term.menu_character:
@@ -106,12 +117,10 @@ class MbedTerminal(object):
                     term.alive = False
                     break
                 elif c == '\x05': # ctrl+e
-                    console_print('[ECHO %s]' % ('OFF' if term.echo else 'ON'))
+                    console_print(f"[ECHO {'OFF' if term.echo else 'ON'}]")
                     term.echo = not term.echo
                 elif c == '\x08': # ctrl+h
                     print_help()
-#                elif c == '\t': # tab/ctrl+i
-#                    term.dump_port_settings()
                 else:
                     text = c
                     for transformation in term.tx_transformations:
@@ -122,6 +131,7 @@ class MbedTerminal(object):
                         for transformation in term.tx_transformations:
                             echo_text = transformation.echo(echo_text)
                         term.console.write(echo_text)
+
         term.writer = input_handler
 
         if print_header:

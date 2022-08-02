@@ -46,15 +46,12 @@ with open('.circleci/config.yml', 'r') as f:
     tests = [item.replace('\n', ' && ') for item in tests]
 
 # Exit if no tests are found
-if tests == None:
+if tests is None:
     sys.exit(1)
 
-# Ignore all tests found before `pip install -e`
-startIndex = -1
-for cmd in tests:
-    if 'pip install -e' in cmd:
-        startIndex = tests.index(cmd) + 1
-        break
+startIndex = next(
+    (tests.index(cmd) + 1 for cmd in tests if 'pip install -e' in cmd), -1
+)
 
 if startIndex == -1:
     sys.exit(1)

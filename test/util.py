@@ -84,21 +84,21 @@ def mkgit(name):
         popen(['git', 'add', 'test'])
         popen(['git', 'commit', '-m', '"commit 1"'])
 
-    bare = os.path.abspath(name + '.git')
+    bare = os.path.abspath(f'{name}.git')
     popen(['git', 'clone', '--bare', name, bare])
     remove(name)
     return os.path.abspath(bare).replace('\\', '/')
 
 def mkhg(name):
-    os.mkdir(name+'.hg')
-    with cd(name+'.hg'):
+    os.mkdir(f'{name}.hg')
+    with cd(f'{name}.hg'):
         popen(['hg', 'init'])
         with open('test', 'w') as f:
             f.write('hello')
         popen(['hg', 'add', 'test'])
         popen(['hg', 'commit', '-m', '"commit 1"'])
 
-    return os.path.abspath(name+'.hg').replace('\\', '/')
+    return os.path.abspath(f'{name}.hg').replace('\\', '/')
 
 def assertls(mbed, dir, tree):
     tree = ''.join(re.escape(l)+r'.*\n' for l in tree)
@@ -170,7 +170,7 @@ def testrepos(mbed, request):
                     hash = pquery(['git', 'rev-parse', 'HEAD'])
                 elif scm() == 'hg':
                     hash = pquery(['hg', 'id', '-i'])
-            f.write(test4 + '/#' + hash + '\n')
+            f.write(f'{test4}/#{hash}' + '\n')
 
         if scm() == 'git':
             popen(['git', 'add', 'test4.lib'])
@@ -180,7 +180,7 @@ def testrepos(mbed, request):
             popen(['hg', 'add', 'test4.lib'])
             popen(['hg', 'commit', '-m', 'test commit'])
             popen(['hg', 'push'])
-    
+
     with cd('test1/test2'):
         with open('test3.lib', 'w') as f:
             with cd('test3'):
@@ -188,7 +188,7 @@ def testrepos(mbed, request):
                     hash = pquery(['git', 'rev-parse', 'HEAD'])
                 elif scm() == 'hg':
                     hash = pquery(['hg', 'id', '-i'])
-            f.write(test3 + '/#' + hash + '\n')
+            f.write(f'{test3}/#{hash}' + '\n')
 
         if scm() == 'git':
             popen(['git', 'add', 'test3.lib'])
@@ -206,7 +206,7 @@ def testrepos(mbed, request):
                     hash = pquery(['git', 'rev-parse', 'HEAD'])
                 elif scm() == 'hg':
                     hash = pquery(['hg', 'id', '-i'])
-            f.write(test2 + '/#' + hash + '\n')
+            f.write(f'{test2}/#{hash}' + '\n')
 
         if scm() == 'git':
             popen(['git', 'add', 'test2.lib'])

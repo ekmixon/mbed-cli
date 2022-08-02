@@ -180,14 +180,14 @@ def action(msg):
 
 def warning(msg):
     lines = msg.splitlines()
-    log(message("WARNING: %s" % lines.pop(0)), True)
+    log(message(f"WARNING: {lines.pop(0)}"), True)
     for line in lines:
         log("       %s\n" % line, True)
     log("---\n", True)
 
 def error(msg, code=-1):
     lines = msg.splitlines()
-    log(message("ERROR: %s" % lines.pop(0)), True)
+    log(message(f"ERROR: {lines.pop(0)}"), True)
     for line in lines:
         log("       %s\n" % line, True)
     log("---\n", True)
@@ -204,8 +204,7 @@ def offline_warning(offline, top=True):
 
 def progress_cursor():
     while True:
-        for cursor in '|/-\\':
-            yield cursor
+        yield from '|/-\\'
 
 progress_spinner = progress_cursor()
 
@@ -274,7 +273,7 @@ def pquery(command, output_callback=None, stdin=None, **kwargs):
         while 1:
             s = str(proc.stderr.read(1))
             line += s
-            if s == '\r' or s == '\n':
+            if s in {'\r', '\n'}:
                 output_callback(line, s)
                 line = ""
 
@@ -353,12 +352,11 @@ class Bld(object):
     name = 'bld'
     default_branch = 'default'
 
-    def init(path):
-        if not os.path.exists(path):
-            os.mkdir(path)
-        else:
-            if len(os.listdir(path)) > 1:
-                error("Directory \"%s\" is not empty." % path)
+    def init(self):
+        if not os.path.exists(self):
+            os.mkdir(self)
+        elif len(os.listdir(self)) > 1:
+            error("Directory \"%s\" is not empty." % self)
 
     def cleanup():
         info("Cleaning up library build folder")
@@ -369,8 +367,8 @@ class Bld(object):
                 else:
                     shutil.rmtree(fl)
 
-    def clone(url, path=None, depth=None, protocol=None):
-        m = Bld.isvalidurl(url)
+    def clone(self, path=None, depth=None, protocol=None):
+        m = Bld.isvalidurl(self)
         if not m:
             raise ProcessException(1, "Not a library build URL")
 
@@ -380,18 +378,18 @@ class Bld(object):
                 rev = Hg.remoteid(m.group(1), 'tip')
                 if not rev:
                     error("Unable to fetch library build information")
-                Bld.seturl(url+'/'+rev)
+                Bld.seturl(f'{self}/{rev}')
         except Exception as e:
             if os.path.isdir(path):
                 rmtree_readonly(path)
             error(e.args[1], e.args[0])
 
-    def fetch_rev(url, rev):
-        rev_file = os.path.join('.'+Bld.name, '.rev-' + rev + '.zip')
+    def fetch_rev(self, rev):
+        rev_file = os.path.join(f'.{Bld.name}', f'.rev-{rev}.zip')
         try:
             if not os.path.exists(rev_file):
                 action("Downloading library build \"%s\" (might take a while)" % rev)
-                inurl = urlopen(url)
+                inurl = urlopen(self)
                 with open(rev_file, 'wb') as outfd:
                     data = None
                     while data != '':
@@ -403,57 +401,57 @@ class Bld(object):
                 os.remove(rev_file)
             raise Exception(128, "Download failed!\nPlease try again later.")
 
-    def unpack_rev(rev):
-        rev_file = os.path.join('.'+Bld.name, '.rev-' + rev + '.zip')
+    def unpack_rev(self):
+        rev_file = os.path.join(f'.{Bld.name}', f'.rev-{self}.zip')
         try:
             with zipfile.ZipFile(rev_file) as zf:
-                action("Unpacking library build \"%s\" in \"%s\"" % (rev, getcwd()))
+                action("Unpacking library build \"%s\" in \"%s\"" % (self, getcwd()))
                 zf.extractall('.')
         except:
             if os.path.isfile(rev_file):
                 os.remove(rev_file)
             raise Exception(128, "An error occurred while unpacking library archive \"%s\" in \"%s\"" % (rev_file, getcwd()))
 
-    def checkout(rev, clean=False):
+    def checkout(self, clean=False):
         url = Bld.geturl()
         m = Bld.isvalidurl(url)
         if not m:
             raise ProcessException(1, "Not a library build URL")
-        rev = Hg.remoteid(m.group(1), rev)
-        if not rev:
+        self = Hg.remoteid(m.group(1), self)
+        if not self:
             error("Unable to fetch library build information")
 
-        arch_url = m.group(1) + '/archive/' + rev + '.zip'
-        Bld.fetch_rev(arch_url, rev)
+        arch_url = f'{m.group(1)}/archive/{self}.zip'
+        Bld.fetch_rev(arch_url, self)
 
-        if rev != Bld.getrev() or clean:
+        if self != Bld.getrev() or clean:
             Bld.cleanup()
 
-            info("Checkout \"%s\" in %s" % (rev, os.path.basename(getcwd())))
+            info("Checkout \"%s\" in %s" % (self, os.path.basename(getcwd())))
             try:
-                Bld.unpack_rev(rev)
-                Bld.seturl(url+'/'+rev)
+                Bld.unpack_rev(self)
+                Bld.seturl(f'{url}/{self}')
             except Exception as e:
                 error(e.args[1], e.args[0])
 
-    def update(rev=None, clean=False, clean_files=False, is_local=False):
-        return Bld.checkout(rev, clean)
+    def update(self, clean=False, clean_files=False, is_local=False):
+        return Bld.checkout(self, clean)
 
     def untracked():
         return ""
 
-    def isvalidurl(url):
-        return re.match(regex_build_url, url.strip().replace('\\', '/'))
+    def isvalidurl(self):
+        return re.match(regex_build_url, self.strip().replace('\\', '/'))
 
-    def seturl(url):
-        info("Setting url to \"%s\" in %s" % (url, getcwd()))
-        if not os.path.exists('.'+Bld.name):
-            os.mkdir('.'+Bld.name)
+    def seturl(self):
+        info("Setting url to \"%s\" in %s" % (self, getcwd()))
+        if not os.path.exists(f'.{Bld.name}'):
+            os.mkdir(f'.{Bld.name}')
 
-        fl = os.path.join('.'+Bld.name, 'bldrc')
+        fl = os.path.join(f'.{Bld.name}', 'bldrc')
         try:
             with open(fl, 'w') as f:
-                f.write(url)
+                f.write(self)
         except IOError:
             error("Unable to write bldrc file in \"%s\"" % fl, 1)
 
@@ -461,7 +459,7 @@ class Bld(object):
         with open(os.path.join('.bld', 'bldrc')) as f:
             url = f.read().strip()
         m = Bld.isvalidurl(url)
-        return m.group(1)+'/builds' if m else ''
+        return f'{m.group(1)}/builds' if m else ''
 
     def getrev():
         with open(os.path.join('.bld', 'bldrc')) as f:
@@ -473,7 +471,7 @@ class Bld(object):
     def getbranch():
         return "default"
 
-    def gettags(rev=None):
+    def gettags(self):
         return []
 
 
@@ -485,38 +483,67 @@ class Hg(object):
     default_branch = 'default'
     ignore_file = os.path.join('.hg', 'hgignore')
 
-    def init(path=None):
-        popen([hg_cmd, 'init'] + ([path] if path else []) + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
+    def init(self):
+        popen(
+            [hg_cmd, 'init']
+            + ([self] if self else [])
+            + (['-v'] if very_verbose else ([] if verbose else ['-q']))
+        )
 
     def cleanup():
         return True
 
-    def clone(url, name=None, depth=None, protocol=None):
+    def clone(self, name=None, depth=None, protocol=None):
         if verbose or very_verbose:
-            popen([hg_cmd, 'clone', formaturl(url, protocol), name] + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
+            popen(
+                [hg_cmd, 'clone', formaturl(self, protocol), name]
+                + (['-v'] if very_verbose else ([] if verbose else ['-q']))
+            )
+
         else:
-            pquery([hg_cmd, 'clone', '--config', 'progress.assume-tty=true', formaturl(url, protocol), name], output_callback=Hg.action_progress)
+            pquery(
+                [
+                    hg_cmd,
+                    'clone',
+                    '--config',
+                    'progress.assume-tty=true',
+                    formaturl(self, protocol),
+                    name,
+                ],
+                output_callback=Hg.action_progress,
+            )
+
             hide_progress()
 
-    def add(dest):
-        info("Adding reference \"%s\"" % dest)
-        try:
-            popen([hg_cmd, 'add', dest] + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
-        except ProcessException:
-            pass
+    def add(self):
+        info("Adding reference \"%s\"" % self)
+        with contextlib.suppress(ProcessException):
+            popen(
+                [hg_cmd, 'add', self]
+                + (['-v'] if very_verbose else ([] if verbose else ['-q']))
+            )
 
-    def remove(dest):
-        info("Removing reference \"%s\" " % dest)
-        try:
-            pquery([hg_cmd, 'rm', '-f', dest] + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
-        except ProcessException:
-            pass
+    def remove(self):
+        info("Removing reference \"%s\" " % self)
+        with contextlib.suppress(ProcessException):
+            pquery(
+                [hg_cmd, 'rm', '-f', self]
+                + (['-v'] if very_verbose else ([] if verbose else ['-q']))
+            )
 
-    def commit(msg=None):
-        popen([hg_cmd, 'commit'] + (['-m', msg] if msg else [])  + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
+    def commit(self):
+        popen(
+            [hg_cmd, 'commit']
+            + (['-m', self] if self else [])
+            + (['-v'] if very_verbose else ([] if verbose else ['-q']))
+        )
 
-    def publish(all_refs=None):
-        popen([hg_cmd, 'push'] + (['--new-branch'] if all_refs else []) + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
+    def publish(self):
+        popen(
+            [hg_cmd, 'push']
+            + (['--new-branch'] if self else [])
+            + (['-v'] if very_verbose else ([] if verbose else ['-q']))
+        )
 
     def fetch():
         info("Fetching revisions from remote repository to \"%s\"" % os.path.basename(getcwd()))
@@ -526,19 +553,24 @@ class Hg(object):
         info("Discarding local changes in \"%s\"" % os.path.basename(getcwd()))
         popen([hg_cmd, 'update', '-C'] + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
 
-    def checkout(rev, clean=False, clean_files=False):
-        info("Checkout \"%s\" in %s" % (rev if rev else "latest", os.path.basename(getcwd())))
+    def checkout(self, clean=False, clean_files=False):
+        info("Checkout \"%s\" in %s" % (self or "latest", os.path.basename(getcwd())))
         if clean_files:
             files = pquery([hg_cmd, 'status', '--no-status', '-ui']).splitlines()
             for f in files:
                 info("Remove untracked file \"%s\"" % f)
                 os.remove(f)
-        popen([hg_cmd, 'update'] + (['-C'] if clean else []) + (['-r', rev] if rev else []) + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
+        popen(
+            [hg_cmd, 'update']
+            + (['-C'] if clean else [])
+            + (['-r', self] if self else [])
+            + (['-v'] if very_verbose else ([] if verbose else ['-q']))
+        )
 
-    def update(rev=None, clean=False, clean_files=False, is_local=False):
+    def update(self, clean=False, clean_files=False, is_local=False):
         if not is_local:
             Hg.fetch()
-        Hg.checkout(rev, clean, clean_files)
+        Hg.checkout(self, clean, clean_files)
 
     def status():
         return pquery([hg_cmd, 'status'] + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
@@ -558,61 +590,52 @@ class Hg(object):
                 raise e
             return 0
 
-    def seturl(url):
-        info("Setting url to \"%s\" in %s" % (url, getcwd()))
+    def seturl(self):
+        info("Setting url to \"%s\" in %s" % (self, getcwd()))
         hgrc = os.path.join('.hg', 'hgrc')
         tagpaths = '[paths]'
         remote = 'default'
         lines = []
 
-        try:
+        with contextlib.suppress(IOError):
             with open(hgrc) as f:
                 lines = f.read().splitlines()
-        except IOError:
-            pass
-
         if tagpaths in lines:
             idx = lines.index(tagpaths)
-            m = re.match(r'^([\w_]+)\s*=\s*(.*)$', lines[idx+1])
-            if m:
-                remote = m.group(1)
+            if m := re.match(r'^([\w_]+)\s*=\s*(.*)$', lines[idx + 1]):
+                remote = m[1]
                 del lines[idx+1]
-            lines.insert(idx, remote+' = '+url)
+            lines.insert(idx, f'{remote} = {self}')
         else:
             lines.append(tagpaths)
-            lines.append(remote+' = '+url)
+            lines.append(f'{remote} = {self}')
 
     def geturl():
         tagpaths = '[paths]'
         default_url = ''
         url = ''
 
-        try:
+        with contextlib.suppress(IOError):
             with open(os.path.join('.hg', 'hgrc')) as f:
                 lines = f.read().splitlines()
                 if tagpaths in lines:
                     idx = lines.index(tagpaths)
-                    m = re.match(r'^([\w_]+)\s*=\s*(.*)$', lines[idx+1])
-                    if m:
-                        if m.group(1) == 'default':
-                            default_url = m.group(2)
+                    if m := re.match(r'^([\w_]+)\s*=\s*(.*)$', lines[idx + 1]):
+                        if m[1] == 'default':
+                            default_url = m[2]
                         else:
-                            url = m.group(2)
-        except IOError:
-            pass
-
+                            url = m[2]
         if default_url:
             url = default_url
 
         return formaturl(url or pquery([hg_cmd, 'paths', 'default']).strip())
 
     def getrev():
-        if os.path.isfile(os.path.join('.hg', 'dirstate')):
-            from io import open
-            with open(os.path.join('.hg', 'dirstate'), 'rb') as f:
-                return "".join('{:02x}'.format(x) for x in bytearray(f.read(6)))
-        else:
+        if not os.path.isfile(os.path.join('.hg', 'dirstate')):
             return ""
+        from io import open
+        with open(os.path.join('.hg', 'dirstate'), 'rb') as f:
+            return "".join('{:02x}'.format(x) for x in bytearray(f.read(6)))
 
     def getbranch():
         return pquery([hg_cmd, 'branch']).strip() or ""
@@ -621,13 +644,17 @@ class Hg(object):
         tags = []
         refs = pquery([hg_cmd, 'tags']).strip().splitlines() or []
         for ref in refs:
-            m = re.match(r'^(.+?)\s+(\d+)\:([a-f0-9]+)$', ref)
-            if m:
-                tags.append([m.group(3), m.group(1)])
+            if m := re.match(r'^(.+?)\s+(\d+)\:([a-f0-9]+)$', ref):
+                tags.append([m[3], m[1]])
         return tags
 
-    def remoteid(url, rev=None):
-        return pquery([hg_cmd, 'id', '--id', url] + (['-r', rev] if rev else [])).strip() or ""
+    def remoteid(self, rev=None):
+        return (
+            pquery(
+                [hg_cmd, 'id', '--id', self] + (['-r', rev] if rev else [])
+            ).strip()
+            or ""
+        )
 
     def hgrc():
         hook = 'ignore.local = .hg/hgignore'
@@ -654,22 +681,22 @@ class Hg(object):
         except IOError:
             error("Unable to write ignore file in \"%s\"" % os.path.join(getcwd(), Hg.ignore_file), 1)
 
-    def ignore(dest):
+    def ignore(self):
         Hg.hgrc()
         try:
             with open(Hg.ignore_file) as f:
-                exists = dest in f.read().splitlines()
+                exists = self in f.read().splitlines()
         except IOError:
             exists = False
 
         if not exists:
             try:
                 with open(Hg.ignore_file, 'a') as f:
-                    f.write(dest + '\n')
+                    f.write(self + '\n')
             except IOError:
                 error("Unable to write ignore file in \"%s\"" % os.path.join(getcwd(), Hg.ignore_file), 1)
 
-    def unignore(dest):
+    def unignore(self):
         Hg.ignore_file = os.path.join('.hg', 'hgignore')
         try:
             with open(Hg.ignore_file) as f:
@@ -677,21 +704,20 @@ class Hg(object):
         except IOError:
             lines = []
 
-        if dest in lines:
-            lines.remove(dest)
+        if self in lines:
+            lines.remove(self)
             try:
                 with open(Hg.ignore_file, 'w') as f:
                     f.write('\n'.join(lines) + '\n')
             except IOError:
                 error("Unable to write ignore file in \"%s\"" % os.path.join(getcwd(), Hg.ignore_file), 1)
 
-    def action_progress(line, sep):
-        m = re.match(r'(\w+).+?\s+(\d+)/(\d+)\s+.*?', line)
-        if m:
-            if m.group(1) == "manifests":
-                show_progress('Downloading', (float(m.group(2)) / float(m.group(3))) * 20)
-            if m.group(1) == "files":
-                show_progress('Downloading', (float(m.group(2)) / float(m.group(3))) * 100)
+    def action_progress(self, sep):
+        if m := re.match(r'(\w+).+?\s+(\d+)/(\d+)\s+.*?', self):
+            if m[1] == "manifests":
+                show_progress('Downloading', float(m[2]) / float(m[3]) * 20)
+            if m[1] == "files":
+                show_progress('Downloading', float(m[2]) / float(m[3]) * 100)
 
 
 # pylint: disable=no-self-argument, no-method-argument, no-member, no-self-use, unused-argument
@@ -702,8 +728,12 @@ class Git(object):
     default_branch = 'master'
     ignore_file = os.path.join('.git', 'info', 'exclude')
 
-    def init(path=None):
-        popen([git_cmd, 'init'] + ([path] if path else []) + ([] if very_verbose else ['-q']))
+    def init(self):
+        popen(
+            [git_cmd, 'init']
+            + ([self] if self else [])
+            + ([] if very_verbose else ['-q'])
+        )
 
     def cleanup():
         info("Cleaning up Git index")
@@ -719,32 +749,42 @@ class Git(object):
         for branch in branches: # delete all local branches so the new repo clone is not poluted
             pquery([git_cmd, 'branch', '-D', branch])
 
-    def clone(url, name=None, depth=None, protocol=None):
+    def clone(self, name=None, depth=None, protocol=None):
         if verbose or very_verbose:
-            popen([git_cmd, 'clone', formaturl(url, protocol), name] + (['--depth', depth] if depth else []) + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
+            popen(
+                [git_cmd, 'clone', formaturl(self, protocol), name]
+                + (['--depth', depth] if depth else [])
+                + (['-v'] if very_verbose else ([] if verbose else ['-q']))
+            )
+
         else:
-            pquery([git_cmd, 'clone', '--progress', formaturl(url, protocol), name] + (['--depth', depth] if depth else []), output_callback=Git.action_progress)
+            pquery(
+                [git_cmd, 'clone', '--progress', formaturl(self, protocol), name]
+                + (['--depth', depth] if depth else []),
+                output_callback=Git.action_progress,
+            )
+
             hide_progress()
 
-    def add(dest):
-        info("Adding reference "+dest)
-        try:
-            popen([git_cmd, 'add', dest] + (['-v'] if very_verbose else []))
-        except ProcessException:
-            pass
+    def add(self):
+        info(f"Adding reference {self}")
+        with contextlib.suppress(ProcessException):
+            popen([git_cmd, 'add', self] + (['-v'] if very_verbose else []))
 
-    def remove(dest):
-        info("Removing reference "+dest)
-        try:
-            pquery([git_cmd, 'rm', '-f', dest] + ([] if very_verbose else ['-q']))
-        except ProcessException:
-            pass
+    def remove(self):
+        info(f"Removing reference {self}")
+        with contextlib.suppress(ProcessException):
+            pquery([git_cmd, 'rm', '-f', self] + ([] if very_verbose else ['-q']))
 
-    def commit(msg=None):
-        popen([git_cmd, 'commit', '-a'] + (['-m', msg] if msg else []) + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
+    def commit(self):
+        popen(
+            [git_cmd, 'commit', '-a']
+            + (['-m', self] if self else [])
+            + (['-v'] if very_verbose else ([] if verbose else ['-q']))
+        )
 
-    def publish(all_refs=None):
-        if all_refs:
+    def publish(self):
+        if self:
             popen([git_cmd, 'push', '--all'] + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
         else:
             remote = Git.getremote()
@@ -754,61 +794,74 @@ class Git(object):
             else:
                 err = "Unable to publish outgoing changes for \"%s\" in \"%s\".\n" % (os.path.basename(getcwd()), getcwd())
                 if not remote:
-                    error(err+"The local repository is not associated with a remote one.", 1)
+                    error(f"{err}The local repository is not associated with a remote one.", 1)
                 if not branch:
-                    error(err+"Working set is not on a branch.", 1)
+                    error(f"{err}Working set is not on a branch.", 1)
 
     def fetch():
         info("Fetching revisions from remote repository to \"%s\"" % os.path.basename(getcwd()))
         popen([git_cmd, 'fetch', '--all', '--tags', '--force'] + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
 
-    def discard(clean_files=False):
+    def discard(self):
         info("Discarding local changes in \"%s\"" % os.path.basename(getcwd()))
         pquery([git_cmd, 'reset', 'HEAD'] + ([] if very_verbose else ['-q'])) # unmarks files for commit
         pquery([git_cmd, 'checkout', '.'] + ([] if very_verbose else ['-q'])) # undo  modified files
-        pquery([git_cmd, 'clean', '-fd'] + (['-x'] if clean_files else []) + (['-q'] if very_verbose else ['-q'])) # cleans up untracked files and folders
+        pquery(
+            [git_cmd, 'clean', '-fd']
+            + (['-x'] if self else [])
+            + (['-q'] if very_verbose else ['-q'])
+        )
 
-    def merge(dest):
-        info("Merging \"%s\" with \"%s\"" % (os.path.basename(getcwd()), dest))
-        popen([git_cmd, 'merge', dest] + (['-v'] if very_verbose else ([] if verbose else ['-q'])))
+    def merge(self):
+        info("Merging \"%s\" with \"%s\"" % (os.path.basename(getcwd()), self))
+        popen(
+            [git_cmd, 'merge', self]
+            + (['-v'] if very_verbose else ([] if verbose else ['-q']))
+        )
 
-    def checkout(rev, clean=False):
-        if not rev:
+    def checkout(self, clean=False):
+        if not self:
             return
-        info("Checkout \"%s\" in %s" % (rev, os.path.basename(getcwd())))
+        info("Checkout \"%s\" in %s" % (self, os.path.basename(getcwd())))
         branch = None
-        refs = Git.getbranches(rev)
+        refs = Git.getbranches(self)
         for ref in refs: # re-associate with a local or remote branch (rev is the same)
             m = re.match(r'^(.*?)\/(.*?)$', ref)
-            if m and m.group(2) != "HEAD": # matches origin/<branch> and isn't HEAD ref
-                if not os.path.exists(os.path.join('.git', 'refs', 'heads', m.group(2))): # okay only if local branch with that name doesn't exist (git will checkout the origin/<branch> in that case)
-                    branch = m.group(2)
+            if m and m[2] != "HEAD": # matches origin/<branch> and isn't HEAD ref
+                if not os.path.exists(os.path.join('.git', 'refs', 'heads', m[2])): # okay only if local branch with that name doesn't exist (git will checkout the origin/<branch> in that case)
+                    branch = m[2]
             elif ref != "HEAD":
                 branch = ref # matches local branch and isn't HEAD ref
 
             if branch:
-                info("Revision \"%s\" matches a branch \"%s\" reference. Re-associating with branch" % (rev, branch))
+                info(
+                    "Revision \"%s\" matches a branch \"%s\" reference. Re-associating with branch"
+                    % (self, branch)
+                )
+
                 popen([git_cmd, 'checkout', branch] + ([] if very_verbose else ['-q']))
                 break
 
         if not branch:
-            popen([git_cmd, 'checkout', rev] + (['-f'] if clean else []) + ([] if very_verbose else ['-q']))
+            popen(
+                [git_cmd, 'checkout', self]
+                + (['-f'] if clean else [])
+                + ([] if very_verbose else ['-q'])
+            )
 
-    def update(rev=None, clean=False, clean_files=False, is_local=False):
+    def update(self, clean=False, clean_files=False, is_local=False):
         if not is_local:
             Git.fetch()
         if clean:
             Git.discard(clean_files)
-        if rev:
-            Git.checkout(rev, clean)
+        if self:
+            Git.checkout(self, clean)
         else:
             remote = Git.getremote()
             branch = Git.getbranch()
             if remote and branch:
-                try:
-                    Git.merge('%s/%s' % (remote, branch))
-                except ProcessException:
-                    pass
+                with contextlib.suppress(ProcessException):
+                    Git.merge(f'{remote}/{branch}')
             else:
                 err = "Unable to update \"%s\" in \"%s\"." % (os.path.basename(getcwd()), getcwd())
                 if not remote:
@@ -837,21 +890,21 @@ class Git(object):
             branch = "master"
         # Check if local branch exists. If not, then just carry on
         try:
-            pquery([git_cmd, 'rev-parse', '%s' % branch])
+            pquery([git_cmd, 'rev-parse', f'{branch}'])
         except ProcessException:
             return 0
         # Check if remote branch exists. If not, then it's a new branch
         try:
-            if not pquery([git_cmd, 'rev-parse', '%s/%s' % (remote, branch)]):
+            if not pquery([git_cmd, 'rev-parse', f'{remote}/{branch}']):
                 return 1
         except ProcessException:
             return 1
         # Check for outgoing commits for the same remote branch only if it exists locally and remotely
-        return 1 if pquery([git_cmd, 'log', '%s/%s..%s' % (remote, branch, branch)]) else 0
+        return 1 if pquery([git_cmd, 'log', f'{remote}/{branch}..{branch}']) else 0
 
     # Checks whether current working tree is detached
     def isdetached():
-        return True if Git.getbranch() == "" else False
+        return Git.getbranch() == ""
 
     # Finds default remote
     def getremote():
@@ -859,25 +912,24 @@ class Git(object):
         remotes = Git.getremotes('push')
         for r in remotes:
             remote = r[0]
-            # Prefer origin which is Git's default remote when cloning
-            if r[0] == "origin":
+            if remote == "origin":
                 break
         return remote
 
     # Finds all associated remotes for the specified remote type
-    def getremotes(rtype='fetch'):
+    def getremotes(self):
         result = []
         remotes = pquery([git_cmd, 'remote', '-v']).strip().splitlines()
         for remote in remotes:
             remote = re.split(r'\s', remote)
             t = re.sub('[()]', '', remote[2])
-            if not rtype or rtype == t:
+            if not self or self == t:
                 result.append([remote[0], remote[1], t])
         return result
 
-    def seturl(url):
-        info("Setting url to \"%s\" in %s" % (url, getcwd()))
-        return pquery([git_cmd, 'remote', 'set-url', 'origin', url]).strip()
+    def seturl(self):
+        info("Setting url to \"%s\" in %s" % (self, getcwd()))
+        return pquery([git_cmd, 'remote', 'set-url', 'origin', self]).strip()
 
     def geturl():
         url = ""
@@ -892,9 +944,18 @@ class Git(object):
         return pquery([git_cmd, 'rev-parse', 'HEAD']).strip()
 
     # Gets current branch or returns empty string if detached
-    def getbranch(rev='HEAD'):
+    def getbranch(self):
         try:
-            branch = pquery([git_cmd, 'rev-parse', '--symbolic-full-name', '--abbrev-ref', rev]).strip()
+            branch = pquery(
+                [
+                    git_cmd,
+                    'rev-parse',
+                    '--symbolic-full-name',
+                    '--abbrev-ref',
+                    self,
+                ]
+            ).strip()
+
         except ProcessException:
             branch = "master"
         return branch if branch != "HEAD" else ""
@@ -907,13 +968,13 @@ class Git(object):
             return []
 
     # Finds branches (local or remote). Will match rev if specified
-    def getbranches(rev=None, ret_rev=False):
+    def getbranches(self, ret_rev=False):
         result = []
         refs = Git.getrefs()
         for ref in refs:
             m = re.match(r'^(.+)\s+refs\/(heads|remotes)\/(.+)$', ref)
-            if m and (not rev or m.group(1).startswith(rev)):
-                result.append(m.group(1) if ret_rev else m.group(3))
+            if m and (not self or m[1].startswith(self)):
+                result.append(m[1] if ret_rev else m[3])
         return result
 
     # Finds tags. Will match rev if specified
@@ -921,21 +982,27 @@ class Git(object):
         tags = []
         refs = Git.getrefs()
         for ref in refs:
-            m = re.match(r'^(.+)\s+refs\/tags\/(.+)$', ref)
-            if m:
-                t = m.group(2)
+            if m := re.match(r'^(.+)\s+refs\/tags\/(.+)$', ref):
+                t = m[2]
                 if re.match(r'^(.+)\^\{\}$', t): # detect tag "pointer"
                     t = re.sub(r'\^\{\}$', '', t) # remove "pointer" chars, e.g. some-tag^{}
                     for tag in tags:
                         if tag[1] == t:
                             tags.remove(tag)
-                tags.append([m.group(1), t])
+                tags.append([m[1], t])
         return tags
 
     # Finds branches a rev belongs to
-    def revbranches(rev):
+    def revbranches(self):
         branches = []
-        lines = pquery([git_cmd, 'branch', '-a', '--contains'] + ([rev] if rev else [])).strip().splitlines()
+        lines = (
+            pquery(
+                [git_cmd, 'branch', '-a', '--contains'] + ([self] if self else [])
+            )
+            .strip()
+            .splitlines()
+        )
+
         for line in lines:
             if re.match(r'^\*?\s+\((.+)\)$', line):
                 continue
@@ -954,10 +1021,10 @@ class Git(object):
         except IOError:
             error("Unable to write ignore file in \"%s\"" % os.path.join(getcwd(), Git.ignore_file), 1)
 
-    def ignore(dest):
+    def ignore(self):
         try:
             with open(Git.ignore_file) as f:
-                exists = dest in f.read().splitlines()
+                exists = self in f.read().splitlines()
         except IOError:
             exists = False
 
@@ -968,18 +1035,18 @@ class Git(object):
                     os.mkdir(ignore_file_parent_directory)
 
                 with open(Git.ignore_file, 'a') as f:
-                    f.write(dest.replace("\\", "/") + '\n')
+                    f.write(self.replace("\\", "/") + '\n')
             except IOError:
                 error("Unable to write ignore file in \"%s\"" % os.path.join(getcwd(), Git.ignore_file), 1)
-    def unignore(dest):
+    def unignore(self):
         try:
             with open(Git.ignore_file) as f:
                 lines = f.read().splitlines()
         except IOError:
             lines = []
 
-        if dest in lines:
-            lines.remove(dest)
+        if self in lines:
+            lines.remove(self)
             try:
                 ignore_file_parent_directory = os.path.dirname(Git.ignore_file)
                 if not os.path.exists(ignore_file_parent_directory):
@@ -990,17 +1057,16 @@ class Git(object):
             except IOError:
                 error("Unable to write ignore file in \"%s\"" % os.path.join(getcwd(), Git.ignore_file), 1)
 
-    def action_progress(line, sep):
-        m = re.match(r'([\w :]+)\:\s*(\d+)% \((\d+)/(\d+)\)', line)
-        if m:
-            if m.group(1) == "remote: Compressing objects" and int(m.group(4)) > 100:
-                show_progress('Preparing', (float(m.group(3)) / float(m.group(4))) * 100)
-            if m.group(1) == "Receiving objects":
-                show_progress('Downloading', (float(m.group(3)) / float(m.group(4))) * 80)
-            if m.group(1) == "Resolving deltas":
-                show_progress('Downloading', (float(m.group(3)) / float(m.group(4))) * 20 + 80)
-            if m.group(1) == "Checking out files":
-                show_progress('Checking out', (float(m.group(3)) / float(m.group(4))) * 100)
+    def action_progress(self, sep):
+        if m := re.match(r'([\w :]+)\:\s*(\d+)% \((\d+)/(\d+)\)', self):
+            if m[1] == "remote: Compressing objects" and int(m[4]) > 100:
+                show_progress('Preparing', float(m[3]) / float(m[4]) * 100)
+            if m[1] == "Receiving objects":
+                show_progress('Downloading', float(m[3]) / float(m[4]) * 80)
+            if m[1] == "Resolving deltas":
+                show_progress('Downloading', float(m[3]) / float(m[4]) * 20 + 80)
+            if m[1] == "Checking out files":
+                show_progress('Checking out', float(m[3]) / float(m[4]) * 100)
 
 _environment_markers = {
     "platform_system": platform.system()
@@ -1012,16 +1078,12 @@ _comparators = {
 }
 
 def _eval_environment_marker(marker):
-    m = re.match(r'\s*([^!=]+)\s*([!=]+)\s*([^\s]*)', marker)
-    if m:
-        try:
-            environment_marker_value = _environment_markers[m.group(1)]
-            environment_marker_cmp = m.group(3).strip("\"'")
-            return _comparators[m.group(2)](environment_marker_value, environment_marker_cmp)
-        except KeyError as e:
-            pass
-
-    raise Exception("Unsupported environment marker: {}".format(marker))
+    if m := re.match(r'\s*([^!=]+)\s*([!=]+)\s*([^\s]*)', marker):
+        with contextlib.suppress(KeyError):
+            environment_marker_value = _environment_markers[m[1]]
+            environment_marker_cmp = m[3].strip("\"'")
+            return _comparators[m[2]](environment_marker_value, environment_marker_cmp)
+    raise Exception(f"Unsupported environment marker: {marker}")
 
 # Repository object
 class Repo(object):
@@ -1042,24 +1104,27 @@ class Repo(object):
         m_repo_ref = re.match(regex_url_ref, url.strip().replace('\\', '/'))
         m_bld_ref = re.match(regex_build_url, url.strip().replace('\\', '/'))
         if m_local:
-            repo.name = os.path.basename(path or m_local.group(1))
-            repo.path = os.path.abspath(path or os.path.join(getcwd(), m_local.group(1)))
-            repo.url = m_local.group(1)
-            repo.rev = m_local.group(2)
+            repo.name = os.path.basename(path or m_local[1])
+            repo.path = os.path.abspath(path or os.path.join(getcwd(), m_local[1]))
+            repo.url = m_local[1]
+            repo.rev = m_local[2]
             repo.is_local = True
         elif m_bld_ref:
-            repo.name = os.path.basename(path or m_bld_ref.group(7))
+            repo.name = os.path.basename(path or m_bld_ref[7])
             repo.path = os.path.abspath(path or os.path.join(getcwd(), repo.name))
-            repo.url = m_bld_ref.group(1)+'/builds'
-            repo.rev = m_bld_ref.group(8)
+            repo.url = m_bld_ref[1] + '/builds'
+            repo.rev = m_bld_ref[8]
             repo.is_build = True
         elif m_repo_ref:
-            repo.name = re.sub(r'\.(git|hg)/?$', '', os.path.basename(path or m_repo_ref.group(2)))
+            repo.name = re.sub(
+                r'\.(git|hg)/?$', '', os.path.basename(path or m_repo_ref[2])
+            )
+
             repo.path = os.path.abspath(path or os.path.join(getcwd(), repo.name))
-            repo.url = formaturl(m_repo_ref.group(1))
-            repo.rev = m_repo_ref.group(3)
+            repo.url = formaturl(m_repo_ref[1])
+            repo.rev = m_repo_ref[3]
         else:
-            error('Invalid repository (%s)' % url.strip(), -1)
+            error(f'Invalid repository ({url.strip()})', -1)
 
         cache_cfg = Global().cache_cfg()
         if cache_repositories and cache_cfg['cache'] == 'enabled':
@@ -1080,26 +1145,28 @@ class Repo(object):
         m_bld_ref = re.match(regex_build_url, ref.strip().replace('\\', '/'))
 
         if m_repo_ref:
-            rev = m_repo_ref.group(3)
+            rev = m_repo_ref[3]
             if rev and rev != 'latest' and rev != 'tip' and not re.match(r'^([a-fA-F0-9]{6,40})$', rev):
-                error('Named branches not allowed in .lib, offending lib is {} '.format(os.path.basename(lib)))
+                error(
+                    f'Named branches not allowed in .lib, offending lib is {os.path.basename(lib)} '
+                )
 
-        if not (m_local or m_bld_ref or m_repo_ref):
-            warning(
-                "File \"%s\" in \"%s\" uses a non-standard .lib file extension, which is not compatible with the mbed build tools.\n" % (os.path.basename(lib), os.path.split(lib)[0]))
-            return False
-        else:
+
+        if m_local or m_bld_ref or m_repo_ref:
             return cls.fromurl(ref, lib[:-4])
+        warning(
+            "File \"%s\" in \"%s\" uses a non-standard .lib file extension, which is not compatible with the mbed build tools.\n" % (os.path.basename(lib), os.path.split(lib)[0]))
+        return False
 
     @classmethod
     def fromrepo(cls, path=None):
         repo = cls()
         if path is None:
             path = Repo.findparent(getcwd())
-            if path is None:
-                error(
-                    "Could not find mbed program in current path \"%s\".\n"
-                    "You can fix this by calling \"mbed new .\" or \"mbed config root .\" in the root of your program." % getcwd())
+        if path is None:
+            error(
+                "Could not find mbed program in current path \"%s\".\n"
+                "You can fix this by calling \"mbed new .\" or \"mbed config root .\" in the root of your program." % getcwd())
 
         repo.path = os.path.abspath(path)
         repo.name = os.path.basename(repo.path)
@@ -1119,11 +1186,10 @@ class Repo(object):
 
     @classmethod
     def isrepo(cls, path=None):
-        for name, _ in scms.items():
-            if os.path.isdir(os.path.join(path, '.'+name)):
-                return True
-
-        return False
+        return any(
+            os.path.isdir(os.path.join(path, f'.{name}'))
+            for name, _ in scms.items()
+        )
 
     @classmethod
     def findparent(cls, path=None):
@@ -1163,7 +1229,21 @@ class Repo(object):
             output = ('latest' if fmt & 1 else '') + (' revision in the current branch' if fmt & 2 else '')
         elif re.match(r'^([a-fA-F0-9]{6,40})$', rev) or re.match(r'^([0-9]+)$', rev):
             revtags = self.gettags(rev) if rev else []
-            output = ('rev ' if fmt & 1 else '') + (('#' + rev[:12] + ((' (tag' + ('s' if len(revtags) > 1 else '') + ': ' + ', '.join(revtags[0:2]) + ')') if len(revtags) else '')) if fmt & 2 and rev else '')
+            output = ('rev ' if fmt & 1 else '') + (
+                f'#{rev[:12]}'
+                + (
+                    ' (tag'
+                    + ('s' if len(revtags) > 1 else '')
+                    + ': '
+                    + ', '.join(revtags[:2])
+                    + ')'
+                    if len(revtags)
+                    else ''
+                )
+                if fmt & 2 and rev
+                else ''
+            )
+
         else:
             output = ('branch/tag' if fmt & 1 else '') + (' "'+rev+'"' if fmt & 2 else '')
 
@@ -1183,7 +1263,7 @@ class Repo(object):
 
     @property
     def lib(self):
-        return self.path + '.' + ('bld' if self.is_build else 'lib')
+        return f'{self.path}.' + ('bld' if self.is_build else 'lib')
 
     @property
     def fullurl(self):
@@ -1196,43 +1276,29 @@ class Repo(object):
         self.url = None
         self.rev = None
         if os.path.isdir(self.path):
-            try:
+            with contextlib.suppress(ProcessException):
                 self.scm = self.getscm()
                 if self.scm and self.scm.name == 'bld':
                     self.is_build = True
-            except ProcessException:
-                pass
-
-            try:
+            with contextlib.suppress(ProcessException):
                 self.url = self.geturl()
                 if not self.url:
                     self.is_local = True
                     ppath = self.findparent(os.path.split(self.path)[0])
                     self.url = relpath(ppath, self.path).replace("\\", "/") if ppath else os.path.basename(self.path)
-            except ProcessException:
-                pass
-
-            try:
+            with contextlib.suppress(ProcessException):
                 self.rev = self.getrev()
-            except ProcessException:
-                pass
-
-            try:
+            with contextlib.suppress(ProcessException):
                 self.libs = list(self.getlibs())
-            except ProcessException:
-                pass
 
     def getscm(self):
         for name, scm in scms.items():
-            if os.path.isdir(os.path.join(self.path, '.'+name)):
+            if os.path.isdir(os.path.join(self.path, f'.{name}')):
                 return scm
 
     def gettags(self, rev=None):
         tags = self.scm.gettags() if self.scm else []
-        if rev:
-            return [tag[1] for tag in tags if tag[0].startswith(rev)]
-        else:
-            return tags
+        return [tag[1] for tag in tags if tag[0].startswith(rev)] if rev else tags
 
     # Pass backend SCM commands and parameters if SCM exists
     def __wrap_scm(self, method):
@@ -1243,26 +1309,40 @@ class Repo(object):
         return __scm_call
 
     def __getattr__(self, attr):
-        if attr in ['geturl', 'getrev', 'add', 'remove', 'ignores', 'ignore', 'unignore',
-                    'status', 'dirty', 'commit', 'outgoing', 'publish', 'checkout', 'update',
-                    'isdetached']:
-            wrapper = self.__wrap_scm(attr)
-            self.__dict__[attr] = wrapper
-            return wrapper
-        else:
+        if attr not in [
+            'geturl',
+            'getrev',
+            'add',
+            'remove',
+            'ignores',
+            'ignore',
+            'unignore',
+            'status',
+            'dirty',
+            'commit',
+            'outgoing',
+            'publish',
+            'checkout',
+            'update',
+            'isdetached',
+        ]:
             raise AttributeError("Repo instance doesn't have attribute '%s'" % attr)
+        wrapper = self.__wrap_scm(attr)
+        self.__dict__[attr] = wrapper
+        return wrapper
 
     def remove(self, dest, *args, **kwargs):
         if os.path.isfile(dest):
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(dest)
-            except OSError:
-                pass
         return self.scm.remove(dest, *args, **kwargs)
 
     def clone(self, url, path, rev=None, depth=None, protocol=None, offline=False, **kwargs):
         # Sorted so repositories that match urls are attempted first
-        info("Trying to guess source control management tool. Supported SCMs: %s" % ', '.join([s.name for s in scms.values()]))
+        info(
+            f"Trying to guess source control management tool. Supported SCMs: {', '.join([s.name for s in scms.values()])}"
+        )
+
         for scm in scms.values():
             main = True
             cache = self.get_cache(url, scm.name)
@@ -1284,13 +1364,7 @@ class Repo(object):
                     #
                     if not rev:
                         with cd(cache):
-                            branch = scm.getbranch()
-                            if branch:
-                                rev = branch
-                            else:
-                                # Can't find the cache branch; use a sensible default
-                                rev = scm.default_branch
-
+                            rev = branch if (branch := scm.getbranch()) else scm.default_branch
                     with cd(path):
                         scm.seturl(formaturl(url, protocol))
                         scm.cleanup()
@@ -1335,8 +1409,7 @@ class Repo(object):
 
             for f in files:
                 if f.endswith('.lib') or f.endswith('.bld'):
-                    repo = Repo.fromlib(os.path.join(root, f))
-                    if repo:
+                    if repo := Repo.fromlib(os.path.join(root, f)):
                         yield repo
                     if f[:-4] in dirs:
                         dirs.remove(f[:-4])
@@ -1344,17 +1417,24 @@ class Repo(object):
     def write(self):
         up = urlparse(self.url)
         if up.hostname:
-            url = up._replace(netloc=up.hostname + (':'+str(up.port) if up.port else '')).geturl() # strip auth string
+            url = up._replace(
+                netloc=up.hostname + (f':{str(up.port)}' if up.port else '')
+            ).geturl()
+
         else:
             url = self.url # use local repo "urls" as is
 
         if os.path.isfile(self.lib):
             with open(self.lib) as f:
                 lib_repo = Repo.fromurl(f.read().strip())
-                if (formaturl(lib_repo.url, 'https') == formaturl(url, 'https') # match URLs in common schema (https)
-                        and (lib_repo.rev == self.rev                           # match revs, even if rev is None (valid for repos with no revisions)
-                             or (lib_repo.rev and self.rev
-                                 and lib_repo.rev == self.rev[0:len(lib_repo.rev)]))):  # match long and short rev formats
+                if formaturl(lib_repo.url, 'https') == formaturl(
+                    url, 'https'
+                ) and (
+                    lib_repo.rev == self.rev
+                    or lib_repo.rev
+                    and self.rev
+                    and lib_repo.rev == self.rev[: len(lib_repo.rev)]
+                ):  # match long and short rev formats
                     #print self.name, 'unmodified'
                     return
 
@@ -1384,7 +1464,7 @@ class Repo(object):
 
     def get_cache(self, url, scm):
         cpath = self.url2cachedir(url)
-        if cpath and os.path.isdir(os.path.join(cpath, '.'+scm)):
+        if cpath and os.path.isdir(os.path.join(cpath, f'.{scm}')):
             return cpath
 
     def set_cache(self, url):
@@ -1393,7 +1473,7 @@ class Repo(object):
             try:
                 if not os.path.isdir(cpath):
                     os.makedirs(cpath)
-                scm_dir = '.'+self.scm.name
+                scm_dir = f'.{self.scm.name}'
                 if os.path.isdir(os.path.join(cpath, scm_dir)):
                     rmtree_readonly(os.path.join(cpath, scm_dir))
                 shutil.copytree(os.path.join(self.path, scm_dir), os.path.join(cpath, scm_dir))
@@ -1428,9 +1508,9 @@ class Repo(object):
                                 os.remove(lock_file)
                                 os.rmdir(lock_dir)
                         elif int(pid) != os.getpid() and self.pid_exists(pid):
-                            info("Cache lock file exists and process %s is alive." % pid)
+                            info(f"Cache lock file exists and process {pid} is alive.")
                         else:
-                            info("Cache lock file exists, but %s is dead. Cleaning up" % pid)
+                            info(f"Cache lock file exists, but {pid} is dead. Cleaning up")
                             os.remove(lock_file)
                             os.rmdir(lock_dir)
                     else:
@@ -1442,7 +1522,7 @@ class Repo(object):
                 try:
                     os.mkdir(lock_dir)
                     with open(lock_file, 'w') as f:
-                        info("Writing cache lock file %s for pid %s" % (lock_file, os.getpid()))
+                        info(f"Writing cache lock file {lock_file} for pid {os.getpid()}")
                         f.write(str(os.getpid()))
                         f.flush()
                         os.fsync(f)
@@ -1469,7 +1549,7 @@ class Repo(object):
 
         lock_dir = os.path.join(cpath, '.lock')
         lock_file = os.path.join(lock_dir, 'pid')
-        try:
+        with contextlib.suppress(OSError):
             if os.path.exists(lock_dir):
                 if os.path.isfile(lock_file):
                     try:
@@ -1483,8 +1563,6 @@ class Repo(object):
                         error("Unable to unlock cache dir \"%s\"" % (cpath))
                     os.remove(lock_file)
                 os.rmdir(lock_dir)
-        except (OSError) as e:
-            pass
         return True
 
     @contextmanager
@@ -1619,31 +1697,25 @@ class Program(object):
     # Gets mbed tools dir (unified)
     def get_tools_dir(self):
         paths = []
-        # mbed-os dir identified and tools is a sub dir
-        mbed_os_path = self.get_os_dir()
-        if mbed_os_path:
-            paths.append([mbed_os_path, 'tools'])
-            paths.append([mbed_os_path, 'core', 'tools'])
-        # mbed-os not identified but tools found under cwd/tools
-        paths.append([self.path, 'tools'])
-        paths.append([self.path, 'core', 'tools'])
-        # mbed Classic deployed tools
-        paths.append([self.path, '.temp', 'tools'])
+        if mbed_os_path := self.get_os_dir():
+            paths.extend(([mbed_os_path, 'tools'], [mbed_os_path, 'core', 'tools']))
+        paths.extend(
+            (
+                [self.path, 'tools'],
+                [self.path, 'core', 'tools'],
+                [self.path, '.temp', 'tools'],
+            )
+        )
 
         return self._find_file_paths(paths, 'make.py')
 
     def get_requirements(self):
         paths = []
-        mbed_os_path = self.get_os_dir()
-        if mbed_os_path:
-            paths.append([mbed_os_path, 'tools'])
-            paths.append([mbed_os_path])
-        # mbed-os not identified but tools found under cwd/tools
-        paths.append([self.path, 'tools'])
-        # mbed Classic deployed tools
-        paths.append([self.path, '.temp', 'tools'])
-        # current dir
-        paths.append([self.path])
+        if mbed_os_path := self.get_os_dir():
+            paths.extend(([mbed_os_path, 'tools'], [mbed_os_path]))
+        paths.extend(
+            ([self.path, 'tools'], [self.path, '.temp', 'tools'], [self.path])
+        )
 
         return self._find_file_paths(paths, 'requirements.txt')
 
@@ -1664,8 +1736,7 @@ class Program(object):
             return library_name in f.read()
 
     def check_requirements(self, require_install=False):
-        skip_requirements = self.get_cfg("NO_REQUIREMENTS", False)
-        if skip_requirements:
+        if skip_requirements := self.get_cfg("NO_REQUIREMENTS", False):
             action("Skipping installed requirements check due to configuration flag.")
             return True
 
@@ -1675,7 +1746,7 @@ class Program(object):
 
         req_file = 'requirements.txt'
         missing = []
-        try:
+        with contextlib.suppress(IOError, ImportError, OSError):
             with open(os.path.join(req_path, req_file), 'r') as f:
                 pkg_list = pquery([python_cmd, '-m', 'pip', 'list', '-l']) or ""
                 installed_packages = [re.sub(r'-', '_', pkg.split()[0].lower()) for pkg in pkg_list.splitlines() if len(pkg.split())]
@@ -1689,28 +1760,24 @@ class Program(object):
                         if not _eval_environment_marker(line_part):
                             break
                     else:
-                        if not pkg in installed_packages:
+                        if pkg not in installed_packages:
                             missing.append(pkg)
 
                 if missing and install_requirements and require_install:
-                    try:
-                        action("Auto-installing missing Python modules (%s)..." % ', '.join(missing))
+                    with contextlib.suppress(ProcessException):
+                        action(f"Auto-installing missing Python modules ({', '.join(missing)})...")
                         pquery([python_cmd, '-m', 'pip', 'install', '-q', '-r', os.path.join(req_path, req_file)])
                         missing = []
-                    except ProcessException:
-                        pass
-        except (IOError, ImportError, OSError):
-            pass
-
         if missing:
             msg = (
                 "Missing Python modules were not auto-installed.\n"
                 "The Mbed OS tools in this program require the following Python modules: %s\n"
                 "You can install all missing modules by running \"pip install -r %s\" in \"%s\"" % (', '.join(missing), req_file, req_path))
-            if os.name == 'posix' and platform.system() == 'Darwin':
-                msg += "\nOn Mac you might have to install packages as your user by adding the \"--user\" flag"
-            elif os.name == 'posix':
-                msg += "\nOn Posix systems (Linux, etc) you might have to switch to superuser account or use \"sudo\""
+            if os.name == 'posix':
+                if platform.system() == 'Darwin':
+                    msg += "\nOn Mac you might have to install packages as your user by adding the \"--user\" flag"
+                else:
+                    msg += "\nOn Posix systems (Linux, etc) you might have to switch to superuser account or use \"sudo\""
 
             if require_install:
                 error(msg, 1)
@@ -1776,37 +1843,35 @@ class Program(object):
         env['PYTHONPATH'] = os.path.abspath(self.path)
         compilers = ['ARM', 'GCC_ARM', 'IAR', 'ARMC6']
         for c in compilers:
-            if self.get_cfg(c+'_PATH'):
-                env['MBED_'+c+'_PATH'] = self.get_cfg(c+'_PATH')
+            if self.get_cfg(f'{c}_PATH'):
+                env[f'MBED_{c}_PATH'] = self.get_cfg(f'{c}_PATH')
         config_options = ['COLOR', 'CLOUD_SDK_API_KEY', 'CLOUD_SDK_HOST']
         for opt in config_options:
             if self.get_cfg(opt):
-                env['MBED_' + opt] = self.get_cfg(opt)
+                env[f'MBED_{opt}'] = self.get_cfg(opt)
 
         return env
 
     def get_target(self, target=None):
         target_cfg = self.get_cfg('TARGET')
-        target = target if target else target_cfg
+        target = target or target_cfg
 
-        if not target or (target.lower() == 'detect' or target.lower() == 'auto'):
-            detected = self.detect_single_target()
-            if detected:
+        if not target or target.lower() in ['detect', 'auto']:
+            if detected := self.detect_single_target():
                 target = detected['name']
 
         return target
 
     def get_toolchain(self, toolchain=None):
         toolchain_cfg = self.get_cfg('TOOLCHAIN')
-        tchain = toolchain if toolchain else toolchain_cfg
+        tchain = toolchain or toolchain_cfg
         if tchain is None:
             error("Please specify toolchain using the -t switch or set default toolchain using command \"mbed toolchain\"", 1)
         return tchain
 
     def get_profile(self, profile=None):
         if not profile:
-            profile_cfg = self.get_cfg('PROFILE')
-            if profile_cfg:
+            if profile_cfg := self.get_cfg('PROFILE'):
                 profile = [profile_cfg]
         return profile
 
@@ -1853,23 +1918,22 @@ class Program(object):
         return info
 
     def get_detected_targets(self):
-        targets = []
         import mbed_os_tools.detect
-        oldError = None
-        if os.name == 'nt':
-            oldError = ctypes.windll.kernel32.SetErrorMode(1) # Disable Windows error box temporarily. note that SEM_FAILCRITICALERRORS = 1
+        oldError = ctypes.windll.kernel32.SetErrorMode(1) if os.name == 'nt' else None
         mbeds = mbed_os_tools.detect.create()
         detect_muts_list = mbeds.list_mbeds()
         if os.name == 'nt':
             ctypes.windll.kernel32.SetErrorMode(oldError)
 
-        for mut in detect_muts_list:
-            targets.append({
-                'id': mut['target_id'], 'name': mut['platform_name'],
-                'mount': mut['mount_point'], 'serial': mut['serial_port']
-            })
-
-        return targets
+        return [
+            {
+                'id': mut['target_id'],
+                'name': mut['platform_name'],
+                'mount': mut['mount_point'],
+                'serial': mut['serial_port'],
+            }
+            for mut in detect_muts_list
+        ]
 
 
 # Global class used for global config
@@ -1877,10 +1941,8 @@ class Global(object):
     def __init__(self):
         self.path = os.path.join(os.path.expanduser("~"), '.mbed')
         if not os.path.exists(self.path):
-            try:
+            with contextlib.suppress(IOError, OSError):
                 os.mkdir(self.path)
-            except (IOError, OSError):
-                pass
 
     def get_cfg(self, *args, **kwargs):
         return Cfg(self.path).get(*args, **kwargs)

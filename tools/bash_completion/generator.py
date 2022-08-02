@@ -55,8 +55,7 @@ def parseCommands():
     helpTxt = getHelpTxt()
     # print helpTxt
     for line in helpTxt.split('\n'):
-        match = re.search(commandRegex, line)
-        if match:
+        if match := re.search(commandRegex, line):
             g = match.groupdict()
             commands[g["command"]]["helptxt"] = g["helptxt"]
             commands[g["command"]]["subcommands"] = []
@@ -78,8 +77,7 @@ def parseCommands():
 
         helpTxt = getHelpTxt(commandKey)
         for line in helpTxt.split('\n'):
-            match = re.search(subcommandRegex, line)
-            if match:
+            if match := re.search(subcommandRegex, line):
                 commandMatch = match.groupdict()
 
                 # Clean up the subcommands
@@ -111,16 +109,14 @@ def parseCommands():
                         {"name": command2})
 
                 if command1:
-                    m = re.match("^-[a-zA-Z]{1,2}", command1)
-                    if m:
+                    if m := re.match("^-[a-zA-Z]{1,2}", command1):
                         commands[commandKey]["DASH_COMMANDS"].append(
                             {"name": command1})
                 else:
                     command1 = ""
 
                 if command2:
-                    m = re.match("^-[a-zA-Z]{1,2}", command2)
-                    if m:
+                    if m := re.match("^-[a-zA-Z]{1,2}", command2):
                         commands[commandKey]["DASH_COMMANDS"].append(
                             {"name": command2})
                 else:
@@ -132,21 +128,21 @@ def parseCommands():
 
                 if "toolchain" in command1 or "toolchain" in command2:
                     commands[commandKey]["HAVE_PREV"]["PREV_CASE"].append({"case": "|".join(filter(None, [command1, command2])), "code": getToolchainCode()})
-                
+
 
                 if "--ide" in command1 or "--ide" in command2:
                     commands[commandKey]["HAVE_PREV"]["PREV_CASE"].append({"case": "|".join(filter(None, [command1, command2])), "code": getIDECode()})
 
                 if "scm" in command1 or "scm" in command2:
                     commands[commandKey]["HAVE_PREV"]["PREV_CASE"].append({"case": "|".join(filter(None, [command1, command2])), "code": getSCMCode()})
-                
+
                 if "protocol" in command1 or "protocol" in command2:
                     commands[commandKey]["HAVE_PREV"]["PREV_CASE"].append({"case": "|".join(filter(None, [command1, command2])), "code": getProtocolCode()})
-                
+
         # Adding the dependent command handlers for target and toolchain
         if "target" in commandKey:
             commands[commandKey]["HAVE_PREV"]["PREV_CASE"].append({"case": commandKey, "code": getTargetCode()})
-                
+
         if "toolchain" in commandKey:
             commands[commandKey]["HAVE_PREV"]["PREV_CASE"].append({"case": commandKey, "code": getToolchainCode()})
 
@@ -154,30 +150,21 @@ def parseCommands():
 
 
 def generateMain(commands):
-    txt = []
-
     with open("templates/mbed.tmplt") as fp:
         tmplt = fp.read()
 
-    txt.append(pystache.render(tmplt, commands))
-
-    return txt
+    return [pystache.render(tmplt, commands)]
 
 
 def generateCompleters(commands):
-    txt = []
-
     renderer = pystache.Renderer(escape=lambda u: u)
 
     with open("templates/command.tmplt") as fp:
         tmplt = fp.read()
 
-    for commandKey in commands:
-        txt.append(renderer.render(tmplt, commands[commandKey]))
-
-        # if need to add hacks add them here
-
-    return txt
+    return [
+        renderer.render(tmplt, commands[commandKey]) for commandKey in commands
+    ]
 
 
 def generateBoilerPlate(_):
